@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Moving a WordPress Site</title>
+    <link href='https://fonts.googleapis.com/css?family=Roboto Thin' rel='stylesheet'>
+    <style>
+    body {
+        font-family: 'Roboto Thin';
+    }
+</head>
+
+<body>
+
+<article>
+
+<header>
+    <h1>Moving a WordPress Site</h1>
+</header>
+
+<section>
+<h3>From shared hosting to a VPS</h3>
+<p>
+First, the site was moving from a shared hosting account (with malware files and all) to a VPS. I had access to the dashboard of a registrar that also offered shared hosting, so I had a control panel.  That was all I needed to have a quick look.  I had no FTP credentials, so I created a temporary FTP account for my own use.  In FileZilla, I selected everything in the WordPress installation directory (all files and directories and their files and so on...) and dragged it across to my local development machine.  You should really only have the WordPress core files, an .htaccess file, and the directories that should be there are wp-admin, wp-include and wp-content.  It's wp-content that's more interesting, and contains all the plugin and theme directories and their files.  Backup plugins will create directories for their things inside wp-content/.
+</p>
+<p>
+After I downloaded everything I could, which skipped a couple of very large backups (some directories going back years with a lot of 2.2MB and larger images) I had enough to go on.  I had permission to login to the WordPress admin dashboard of course, but nobody knew the password off-hand.  Not much of an issue with most shared hosting accounts, if you have a database dump that you can read and inspect.  There was a recent WordPress database backup, so I had a look at where the user accounts and password hashes were.  Turns out they're in wp_users (the wp_ prefix may be something else).  The default WordPress password hash was used, which is an MD5 hash of the salt and password, then 8 more rounds of MD5.  I couldn't find the password hash in any rainbow tables, which was a nice result.
+</p>
+<p>
+With wp-config.php which contains the database details, login and password, and the database file, I could get to work. I created a php file on my local machine which hashed a password for me that WordPress could work with (the default kind).  I replaced the old admin user's password hash with my new one in wp_users, and uploaded everything to a VPS.  That is, everything that was in the WordPress install directory, minus the .htaccess, and placed the database dump .sql file in the VPS home directory.  I created a vhost and ran mysql -u root -p < /home/username/database.sql to import the database.
+</p>
+<p>
+At first no URLs could be found.  After editing /etc/apache2/apache2.conf to allow overrides in the /var/www directory, I could create the default .htaccess rules for WordPress and place them in /var/www/newsite/.  When I went to vist https://newsite/, nothing much worked as expected.  What I did then was to inspect the database dump.  The site URL was wrong of course, and needed to be https://newsite/.  I changed all occurences of http://oldsite/ to https://newsite/, and noted the shared host's full path to the WordPress installation, something like /home/users/53422/html/, and replaced every occurence of that with the new WordPress install on the VPS, /var/www/newsite/.  I dropped the old database and imported the new one, and visited https://newsite/ again.
+</p>
+<p>
+Fantastic!  Cooking now.  Then I updated all the plugins and WordPress core, and ran the WordFence scanner.  It helpfully picked up quite a few nasties and I could just delete them all with a click in the WordFence admin area.
+</p>
+<p>
+It may be necessary with some plugins to deactivate them, and reactivate them to start again.  It's helpful to examine the wp_options table for key value pairs in case you need to change anything.
+</p>
+<p>
+In summary, try to get into the admin area first to have a look around.  Note the WordPress version, theme and plugins.  Sometimes you may have to adjust the theme if it fails to save some options.  Take a backup of everything (you can install the latest version of WordPress, and just take wp-content/* and stick that in) and connect to the MySQL host to change the password to login if you have to, or add a new admin user.  From wp-config.php, you can grab the database details and connect.  I did <code>mysql -D foo123 -h foo123.db.xyz.hostedresource.com -u foo123 -p</code> to connect, typed in the password from wp-config.php (the other details you need are there), then ran <code>UPDATE wp_users SET user_pass = '$P$B.....' WHERE user_login = 'admin_name';</code> in the mysql program.  This meant that I could notify the client of a password change and they could log in again as well, while I moved the site to a VPS.  In the database dump (choose a backup plugin to get one if there isn't one) change all instances of http://oldsite/ with https://newsite/ and change all the full pathnames you find to the new one.  Also change the admin login and password hash if you need to for some reason.  Also in the database dump before you import the database.sql file into MySQL at the new site, you might like to change the admin email in wp_users and in wp_options where option_name = 'admin_email'.  Check out that table for your needs.  And that's about it!
+</p>
+</section>
+
+<footer>
+<p>Submit a pull request with your own experiences!</p>
+</footer>
+
+</article>
+
+</body>
+</html>
